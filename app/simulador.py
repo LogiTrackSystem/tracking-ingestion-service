@@ -14,7 +14,7 @@ from .models import LecturaTelemetria, SimulacionEvento, SimulacionViaje
 
 TICK_SEGUNDOS = int(os.getenv("SIM_TICK_SEGUNDOS", "5"))
 FACTOR_TIEMPO = float(os.getenv("SIM_FACTOR_TIEMPO", "120"))
-COMBUSTIBLE_INICIAL_PCT = float(os.getenv("SIM_COMBUSTIBLE_INICIAL_PCT", "80"))
+COMBUSTIBLE_INICIAL_PCT = float(os.getenv("SIM_COMBUSTIBLE_INICIAL_PCT", "100"))
 
 RESERVA_PCT = 15.0          # reserva de combustible que se busca conservar al salir de una parada
 NIVEL_CRITICO_PCT = 8.0     # por debajo de esto sin parada a la vista, recarga de emergencia

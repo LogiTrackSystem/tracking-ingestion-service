@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from .consumidor import iniciar_consumidor
 from .events import cerrar_publicador
-from .routers import simulaciones, telemetria
+from .routers import seguimiento, simulaciones, telemetria
 from .simulador import TICK_SEGUNDOS, tick
 
 
@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Tracking Ingestion Service", lifespan=lifespan)
 app.include_router(telemetria.router)
 app.include_router(simulaciones.router)
+app.include_router(seguimiento.router)
 
 
 @app.get("/health")

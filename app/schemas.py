@@ -91,3 +91,123 @@ class SimulacionEventoLeer(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     tiempo: datetime
+
+
+
+# ---------- Seguimiento (contrato para el mapa del frontend) ----------
+
+class PuntoGeo(BaseModel):
+    nombre: Optional[str] = None
+    latitud: float
+    longitud: float
+
+
+class SeguimientoParada(BaseModel):
+    nombre: Optional[str] = None
+    km_desde_origen: float
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    estado: str  # pasada | proxima | pendiente
+
+
+class SeguimientoVehiculo(BaseModel):
+    id: uuid.UUID
+    placa: Optional[str] = None
+    conductor_id: Optional[uuid.UUID] = None
+    conductor_nombre: Optional[str] = None
+
+
+class SeguimientoPosicion(BaseModel):
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    velocidad_kmh: Optional[float] = None
+    actualizada_en: Optional[datetime] = None
+
+
+class SeguimientoProgreso(BaseModel):
+    porcentaje: float
+    km_recorridos: float
+    km_totales: Optional[float] = None
+    km_restantes: Optional[float] = None
+
+
+class SeguimientoTiempos(BaseModel):
+    iniciado_en: Optional[datetime] = None
+    hora_estimada_llegada: Optional[datetime] = None
+    llegada_en: Optional[datetime] = None
+    segundos_restantes: Optional[int] = None
+
+
+class SeguimientoCombustible(BaseModel):
+    nivel_pct: Optional[float] = None
+    litros: Optional[float] = None
+    capacidad_l: Optional[float] = None
+    autonomia_km: Optional[float] = None
+    recargas: int
+    litros_recargados: float
+    estimado: bool
+
+
+class SeguimientoParadaActual(BaseModel):
+    en_parada: bool
+    motivo: Optional[str] = None
+    hasta: Optional[datetime] = None
+
+
+class SeguimientoLeer(BaseModel):
+    envio_id: uuid.UUID
+    codigo_envio: Optional[str] = None
+    codigo_ruta: Optional[str] = None
+    estado_viaje: str
+    mensaje: str
+    factor_tiempo: float
+    vehiculo: SeguimientoVehiculo
+    origen: Optional[PuntoGeo] = None
+    destino: Optional[PuntoGeo] = None
+    posicion: SeguimientoPosicion
+    progreso: SeguimientoProgreso
+    tiempos: SeguimientoTiempos
+    combustible: SeguimientoCombustible
+    parada_actual: SeguimientoParadaActual
+    siguiente_parada: Optional[dict] = None
+    paradas: list[SeguimientoParada] = []
+
+
+class SeguimientoResumen(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    envio_id: uuid.UUID
+    codigo_envio: Optional[str] = None
+    vehiculo_id: uuid.UUID
+    placa: Optional[str] = None
+    estado: str
+    origen: Optional[str] = None
+    destino: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    velocidad_actual_kmh: Optional[float] = None
+    progreso_pct: float
+    combustible_pct: Optional[float] = None
+    hora_estimada_llegada: Optional[datetime] = None
+
+
+class TrazadoLeer(BaseModel):
+    envio_id: uuid.UUID
+    codigo_envio: Optional[str] = None
+    codigo_ruta: Optional[str] = None
+    distancia_km: Optional[float] = None
+    origen: PuntoGeo
+    destino: PuntoGeo
+    puntos: list[list[float]]
+    paradas: list[SeguimientoParada] = []
+
+
+class RecorridoPunto(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    tiempo: datetime
+    latitud: float
+    longitud: float
+    velocidad_kmh: Optional[float] = None
+    nivel_combustible_pct: Optional[float] = None
+    kilometraje_acumulado_km: Optional[float] = None
