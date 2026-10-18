@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
+from .interno import proteger_servicio
 
 from .consumidor import iniciar_consumidor
 from .events import cerrar_publicador
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Tracking Ingestion Service", lifespan=lifespan)
 app.include_router(telemetria.router)
+proteger_servicio(app)
 app.include_router(simulaciones.router)
 app.include_router(seguimiento.router)
 

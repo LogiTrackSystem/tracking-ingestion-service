@@ -1,6 +1,7 @@
 import os
 
 import httpx
+from .interno import cabeceras_internas
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +19,7 @@ async def _get(base: str | None, ruta: str) -> dict:
     if not base:
         raise DatosNoDisponibles(f"falta configurar la URL del servicio para {ruta}")
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, headers=cabeceras_internas()) as client:
             resp = await client.get(f"{base}{ruta}")
     except httpx.HTTPError as exc:
         raise DatosNoDisponibles(f"{base} no responde ({type(exc).__name__})")
