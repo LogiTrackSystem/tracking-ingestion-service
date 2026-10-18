@@ -145,7 +145,7 @@ def _perfil_combustible(vehiculo: dict):
 async def _preparar(db, sim):
     try:
         envio = await clientes_http.obtener_envio(sim.envio_id)
-        if envio.get("estado") in ("entregado", "devuelto"):
+        if envio.get("estado") in ("entregado", "devuelto", "cancelado"):
             sim.estado = "cancelada"
             sim.ultimo_error = f"El envío ya está {envio['estado']}"
             _evento(db, sim, "cancelada", sim.ultimo_error)

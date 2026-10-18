@@ -49,7 +49,7 @@ class SimulacionViaje(Base):
     estado = Column(String(20), nullable=False, server_default="preparando", index=True)
 
     # Datos copiados al preparar el viaje
-    codigo_envio = Column(String(12), nullable=True)
+    codigo_envio = Column(String(20), nullable=True)  # incluye códigos de partes: ENV-00000032-P1
     origen = Column(String(255), nullable=True)
     destino = Column(String(255), nullable=True)
     tipo_carga = Column(String(20), nullable=True)
