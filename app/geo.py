@@ -36,3 +36,31 @@ def posicion_en(puntos, acum, fraccion):
     lat = puntos[i][0] + t * (puntos[i + 1][0] - puntos[i][0])
     lon = puntos[i][1] + t * (puntos[i + 1][1] - puntos[i][1])
     return float(lat), float(lon)
+
+def decodificar_polyline(cadena, precision=5):
+    """Convierte la polyline codificada de OSRM/Routing en una lista de [lat, lon]."""
+    indice = lat = lon = 0
+    factor = 10 ** precision
+    puntos = []
+    while indice < len(cadena):
+        for coordenada in (0, 1):
+            desplazamiento = resultado = 0
+            while True:
+                b = ord(cadena[indice]) - 63
+                indice += 1
+                resultado |= (b & 0x1F) << desplazamiento
+                desplazamiento += 5
+                if b < 0x20:
+                    break
+            delta = ~(resultado >> 1) if resultado & 1 else resultado >> 1
+            if coordenada == 0:
+                lat += delta
+            else:
+                lon += delta
+        puntos.append([lat / factor, lon / factor])
+    return puntos
+
+
+def distancia_total(puntos):
+    acum = acumulados(puntos)
+    return acum[-1] if acum else 0.0

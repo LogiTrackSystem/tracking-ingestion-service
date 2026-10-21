@@ -171,6 +171,9 @@ class SeguimientoLeer(BaseModel):
     parada_actual: SeguimientoParadaActual
     siguiente_parada: Optional[dict] = None
     paradas: list[SeguimientoParada] = []
+    fase: Optional[str] = None                    # "reposicion" (va vacío al origen) | "viaje" (lleva la carga)
+    reposicion: Optional[dict] = None             # tramo en vacío: km totales/recorridos y de dónde salió
+    carga_compartida: Optional[dict] = None       # si el envío viaja en el vehículo de otro: tramo y estado
 
 
 class SeguimientoResumen(BaseModel):

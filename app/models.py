@@ -83,6 +83,19 @@ class SimulacionViaje(Base):
     en_parada_hasta = Column(DateTime(timezone=True), nullable=True)
     motivo_parada = Column(String(30), nullable=True)
 
+    # Tramo en vacío (reposicionamiento): el vehículo sale de donde estaba, no del origen del envío
+    reposicion_km = Column(Float, nullable=False, server_default=text("0"))       # distancia del tramo en vacío
+    km_reposicion = Column(Float, nullable=False, server_default=text("0"))       # lo que lleva recorrido de ese tramo
+    reposicion_datos = Column(JSONB, nullable=True)       # lo que informó Routing (distancia, fuente, motivo, geometría)
+    puntos_reposicion = Column(JSONB, nullable=True)      # trazado [lat, lon] del tramo en vacío
+    desde = Column(JSONB, nullable=True)                  # dónde estaba el vehículo al reservarlo (según Fleet)
+    origen_info = Column(JSONB, nullable=True)            # punto de origen/destino del envío (coordenadas y país)
+    destino_info = Column(JSONB, nullable=True)
+    # Última ubicación real: se informa a Fleet al llegar (entrega) o al interrumpirse (interrupcion / restaurar)
+    cierre_ubicacion = Column(String(15), nullable=True)
+    ubicacion_informada = Column(Boolean, nullable=False, server_default=text("false"))
+    intentos_ubicacion = Column(Integer, nullable=False, server_default=text("0"))
+
     # Tiempos y control
     iniciado_en = Column(DateTime(timezone=True), nullable=True)
     ultima_actualizacion = Column(DateTime(timezone=True), nullable=True)
@@ -94,6 +107,11 @@ class SimulacionViaje(Base):
     ultimo_error = Column(Text, nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    @property
+    def fase(self):
+        """"reposicion" mientras el vehículo va vacío hacia el origen; "viaje" cuando ya lleva la carga."""
+        return "reposicion" if (self.reposicion_km or 0.0) - (self.km_reposicion or 0.0) > 1e-6 else "viaje"
 
     @property
     def combustible_pct(self):
@@ -121,6 +139,37 @@ class SimulacionViaje(Base):
             p = paradas[indice]
             return {"nombre": p.get("nombre"), "km_desde_origen": p.get("km_desde_origen")}
         return None
+
+
+class CargaCompartida(Base):
+    """Un envío que viaja en el vehículo de OTRO envío (carga compartida). No tiene simulación propia: sube y baja
+    según el kilómetro que recorre la simulación del vehículo anfitrión."""
+    __tablename__ = "cargas_compartidas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    envio_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    ruta_id = Column(UUID(as_uuid=True), nullable=False, unique=True)
+    ruta_anfitriona_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    vehiculo_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    conductor_id = Column(UUID(as_uuid=True), nullable=True)
+    placa = Column(String(20), nullable=True)
+    conductor_nombre = Column(String(150), nullable=True)
+    codigo_ruta = Column(String(12), nullable=True)
+    origen_nombre = Column(String(255), nullable=True)
+    destino_nombre = Column(String(255), nullable=True)
+    km_recogida = Column(Float, nullable=False)
+    km_entrega = Column(Float, nullable=False)
+    estado = Column(String(20), nullable=False, server_default="pendiente", index=True)  # pendiente|a_bordo|entregada|cancelada|interrumpida
+    inicio_publicado = Column(Boolean, nullable=False, server_default=text("false"))
+    llegada_publicada = Column(Boolean, nullable=False, server_default=text("false"))
+    # La carga no llegó a subir (el vehículo ya había pasado la recogida o terminó antes): hay que avisarle a Routing
+    # con tracking.shared_load_missed para que la reasigne a otro vehículo.
+    reencolar_pendiente = Column(Boolean, nullable=False, server_default=text("false"))
+    iniciado_en = Column(DateTime(timezone=True), nullable=True)
+    llegada_en = Column(DateTime(timezone=True), nullable=True)
+    hora_estimada_llegada = Column(DateTime(timezone=True), nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class SimulacionEvento(Base):

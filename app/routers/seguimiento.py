@@ -6,7 +6,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import LecturaTelemetria, SimulacionViaje
+from ..models import CargaCompartida, LecturaTelemetria, SimulacionViaje
 from ..schemas import RecorridoPunto, SeguimientoLeer, SeguimientoResumen, TrazadoLeer
 from ..simulador import ESTADOS_ACTIVOS, FACTOR_TIEMPO
 
@@ -33,7 +33,12 @@ def _viaje_de_envio(db: Session, envio_id: uuid.UUID) -> SimulacionViaje:
         .first()
     )
     if sim is None:
-        raise _sin_viaje()
+        # Un envío que viaja en el vehículo de otro no tiene viaje propio: se usa el del vehículo anfitrión
+        carga = _carga_de_envio(db, envio_id)
+        if carga is not None:
+            sim = db.query(SimulacionViaje).filter(SimulacionViaje.ruta_id == carga.ruta_anfitriona_id).first()
+        if sim is None:
+            raise _sin_viaje()
     return sim
 
 
@@ -49,6 +54,8 @@ def _mensaje(sim: SimulacionViaje, en_parada: bool) -> str:
     if sim.estado == "pausada":
         return "Detenido por retención en aduana"
     if sim.estado == "en_curso":
+        if sim.fase == "reposicion":
+            return "Detenido para recargar combustible" if en_parada else "Va en vacío hacia el punto de recogida"
         return "Detenido para recargar combustible" if en_parada else "En camino"
     if sim.estado == "finalizada":
         return "Llegó a su destino"
@@ -142,7 +149,95 @@ def _armar(sim: SimulacionViaje) -> dict:
         },
         "siguiente_parada": sim.siguiente_parada if sim.estado in ESTADOS_ACTIVOS else None,
         "paradas": _paradas(sim),
+        "fase": sim.fase if sim.estado in ESTADOS_ACTIVOS else None,
+        "reposicion": _reposicion(sim),
+        "carga_compartida": None,
     }
+
+
+def _reposicion(sim: SimulacionViaje):
+    if not sim.reposicion_datos:
+        return None
+    datos = sim.reposicion_datos
+    return {
+        "km_totales": round(sim.reposicion_km or 0.0, 2),
+        "km_recorridos": round(sim.km_reposicion or 0.0, 2),
+        "fuente": datos.get("fuente"),
+        "resuelta": datos.get("resuelta"),
+        "motivo": datos.get("motivo"),
+        "salio_de": ({"latitud": sim.desde.get("latitud"), "longitud": sim.desde.get("longitud"),
+                      "nombre": sim.desde.get("nombre"), "origen_del_dato": sim.desde.get("fuente")}
+                     if sim.desde and sim.desde.get("latitud") is not None else None),
+    }
+
+
+_ESTADO_CARGA = {"pendiente": "preparando", "a_bordo": "en_curso", "entregada": "finalizada",
+                 "cancelada": "cancelada", "interrumpida": "cancelada"}
+_MENSAJE_CARGA = {
+    "pendiente": "Esperando que el vehículo llegue al punto de recogida",
+    "a_bordo": "En camino, a bordo de un vehículo compartido",
+    "entregada": "Llegó a su destino",
+    "cancelada": "Viaje cancelado: se reasignará o lo resolverá un operador",
+    "interrumpida": "El vehículo no terminó su recorrido con la carga a bordo: requiere atención de un operador",
+}
+
+
+def _armar_compartida(db: Session, fila: CargaCompartida) -> dict:
+    """Seguimiento de un envío que viaja en el vehículo de otro: se muestra la posición del vehículo y el avance
+    SOLO del tramo que le corresponde a este envío."""
+    host = db.query(SimulacionViaje).filter(SimulacionViaje.ruta_id == fila.ruta_anfitriona_id).first()
+    tramo = max(fila.km_entrega - fila.km_recogida, 0.0)
+    km_host = 0.0
+    if host is not None:
+        km_host = host.distancia_total_km if (host.estado == "finalizada" and fila.estado == "entregada") else (host.km_recorridos or 0.0)
+    recorridos = 0.0 if fila.estado == "pendiente" else (tramo if fila.estado == "entregada" else min(max(km_host - fila.km_recogida, 0.0), tramo))
+    ahora = datetime.now(timezone.utc)
+    en_marcha = host is not None and host.estado == "en_curso"
+    segundos = None
+    if fila.estado == "a_bordo" and host is not None and host.estado == "en_curso":
+        faltan = max(tramo - recorridos, 0.0)
+        segundos = int(faltan / max(host.velocidad_promedio_kmh or 60.0, 1.0) * 3600.0 / FACTOR_TIEMPO)
+    return {
+        "envio_id": fila.envio_id,
+        "codigo_envio": None,
+        "codigo_ruta": fila.codigo_ruta,
+        "estado_viaje": _ESTADO_CARGA.get(fila.estado, fila.estado),
+        "mensaje": _MENSAJE_CARGA.get(fila.estado, fila.estado),
+        "factor_tiempo": FACTOR_TIEMPO,
+        "vehiculo": {"id": fila.vehiculo_id, "placa": fila.placa, "conductor_id": fila.conductor_id,
+                     "conductor_nombre": fila.conductor_nombre},
+        "origen": None, "destino": None,
+        "posicion": {
+            "latitud": host.latitud if host is not None else None,
+            "longitud": host.longitud if host is not None else None,
+            "velocidad_kmh": host.velocidad_actual_kmh if host is not None else None,
+            "actualizada_en": host.ultima_actualizacion if host is not None else None,
+        },
+        "progreso": {"porcentaje": round(recorridos / tramo * 100, 1) if tramo else 0.0, "km_recorridos": round(recorridos, 2),
+                     "km_totales": round(tramo, 2), "km_restantes": round(max(tramo - recorridos, 0.0), 2)},
+        "tiempos": {"iniciado_en": fila.iniciado_en, "hora_estimada_llegada": fila.hora_estimada_llegada,
+                    "llegada_en": fila.llegada_en, "segundos_restantes": segundos},
+        "combustible": {"nivel_pct": None, "litros": None, "capacidad_l": None, "autonomia_km": None,
+                        "recargas": 0, "litros_recargados": 0.0, "estimado": True},
+        "parada_actual": {"en_parada": False, "motivo": None, "hasta": None},
+        "siguiente_parada": None,
+        "paradas": [],
+        "fase": None,
+        "reposicion": None,
+        "carga_compartida": {
+            "estado": fila.estado, "recogida": fila.origen_nombre, "entrega": fila.destino_nombre,
+            "km_recogida": fila.km_recogida, "km_entrega": fila.km_entrega, "ruta_anfitriona_id": fila.ruta_anfitriona_id,
+        },
+    }
+
+
+def _carga_de_envio(db: Session, envio_id: uuid.UUID):
+    return (
+        db.query(CargaCompartida)
+        .filter(CargaCompartida.envio_id == envio_id)
+        .order_by(CargaCompartida.creado_en.desc())
+        .first()
+    )
 
 
 @router.get("/flota", response_model=list[SeguimientoResumen])
@@ -187,6 +282,11 @@ def seguimiento_por_vehiculo(vehiculo_id: uuid.UUID, db: Session = Depends(get_d
 
 @router.get("/envio/{envio_id}", response_model=SeguimientoLeer)
 def seguimiento_de_envio(envio_id: uuid.UUID, db: Session = Depends(get_db)):
+    sim = db.query(SimulacionViaje).filter(SimulacionViaje.envio_id == envio_id).order_by(SimulacionViaje.creado_en.desc()).first()
+    if sim is None:
+        carga = _carga_de_envio(db, envio_id)
+        if carga is not None:
+            return _armar_compartida(db, carga)
     return _armar(_viaje_de_envio(db, envio_id))
 
 
@@ -200,11 +300,12 @@ def trazado_del_envio(envio_id: uuid.UUID, db: Session = Depends(get_db)):
             status_code=409,
             detail={"codigo": "VIAJE_EN_PREPARACION", "mensaje": "El viaje todavía se está preparando; intente en unos segundos."},
         )
+    carga = _carga_de_envio(db, envio_id) if sim.envio_id != envio_id else None
     return {
-        "envio_id": sim.envio_id,
-        "codigo_envio": sim.codigo_envio,
+        "envio_id": envio_id,
+        "codigo_envio": sim.codigo_envio if carga is None else None,
         "codigo_ruta": sim.codigo_ruta,
-        "distancia_km": sim.distancia_total_km,
+        "distancia_km": sim.distancia_total_km if carga is None else round(carga.km_entrega - carga.km_recogida, 2),
         "origen": origen,
         "destino": destino,
         "puntos": [[float(p[0]), float(p[1])] for p in sim.puntos],

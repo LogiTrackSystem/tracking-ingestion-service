@@ -14,6 +14,7 @@ EXCHANGE_NAME = "logitrack_events"
 _HANDLERS = {
     "route.assigned": simulador.procesar_route_assigned,
     "shipment.returned": simulador.procesar_envio_devuelto,
+    "shipment.cancelled": simulador.procesar_envio_cancelado,
     "shipment.delivered": simulador.procesar_entrega_manual,
     "customs.held": simulador.procesar_aduana_retiene,
     "customs.cleared": simulador.procesar_aduana_libera,
