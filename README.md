@@ -36,3 +36,8 @@ Microservicio de ingesta de telemetría GPS/IoT de la flota (posición, velocida
 - **Seguimiento.** `GET /seguimiento/envio/{id}` agrega `fase`, `reposicion` y `carga_compartida`; para una carga compartida muestra la posición del vehículo y el avance de su tramo.
 
 **Consume además:** `shipment.cancelled`. **Migración** `c47d9e12b3f6`. **Pruebas:** `python -m pytest tests`.
+
+## Seguimiento para la cuenta de cliente
+
+`GET /seguimiento/cliente/envio/{id}` (más `/trazado` y `/recorrido`) devuelve al **cliente** el estado, la ubicación real más reciente, el avance y la ruta de **su** envío, con la misma información de mapa que ve el personal pero sin vehículo (placa, conductor), combustible ni datos de otros envíos. El dueño se valida siempre contra Shipment con la identidad que inyecta el Gateway (`X-Cliente-Id`); un envío ajeno y uno inexistente responden igual (404). Sin viaje responde 200 con `estado_viaje = "sin_viaje"`; sin posición real `posicion.disponible = false` (no se inventa nada); si el viaje sigue en curso y la última posición pasa de `UBICACION_OBSOLETA_SEGUNDOS` (60) llega `posicion.desactualizada = true`. Una carga compartida solo muestra su tramo. El Gateway deja pasar al rol cliente únicamente por esta ruta. Detalle completo: `SEGUIMIENTO_CLIENTE.md`. **Pruebas:** `tests/test_seguimiento_cliente.py`.
+

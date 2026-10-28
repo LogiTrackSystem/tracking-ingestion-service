@@ -6,7 +6,7 @@ from .interno import proteger_servicio
 
 from .consumidor import iniciar_consumidor
 from .events import cerrar_publicador
-from .routers import seguimiento, simulaciones, telemetria
+from .routers import seguimiento, seguimiento_cliente, simulaciones, telemetria
 from .simulador import TICK_SEGUNDOS, tick
 
 
@@ -30,6 +30,7 @@ app.include_router(telemetria.router)
 proteger_servicio(app)
 app.include_router(simulaciones.router)
 app.include_router(seguimiento.router)
+app.include_router(seguimiento_cliente.router)
 
 
 @app.get("/health")

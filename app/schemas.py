@@ -214,3 +214,88 @@ class RecorridoPunto(BaseModel):
     velocidad_kmh: Optional[float] = None
     nivel_combustible_pct: Optional[float] = None
     kilometraje_acumulado_km: Optional[float] = None
+
+
+# ---------- Seguimiento para la cuenta de CLIENTE ----------
+# Mismos nombres que el contrato del mapa del personal (posicion, progreso, tiempos, origen, destino, paradas, fase)
+# para reutilizar el mismo componente, pero SIN vehículo (placa/conductor), combustible, flota ni datos internos.
+
+class ClientePunto(BaseModel):
+    nombre: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+
+
+class ClientePosicion(BaseModel):
+    disponible: bool                                  # False = todavía no hay ninguna ubicación real que mostrar
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    velocidad_kmh: Optional[float] = None
+    actualizada_en: Optional[datetime] = None
+    desactualizada: bool = False                      # el viaje sigue en curso pero hace más de umbral_segundos que no llega una posición
+    segundos_desde_actualizacion: Optional[int] = None
+    umbral_segundos: int
+
+
+class ClienteProgreso(BaseModel):
+    porcentaje: float
+    km_recorridos: float
+    km_totales: Optional[float] = None
+    km_restantes: Optional[float] = None
+
+
+class ClienteTiempos(BaseModel):
+    iniciado_en: Optional[datetime] = None
+    hora_estimada_llegada: Optional[datetime] = None
+    llegada_en: Optional[datetime] = None
+    segundos_restantes: Optional[int] = None
+
+
+class ClienteParadaActual(BaseModel):
+    en_parada: bool
+    motivo: Optional[str] = None
+
+
+class ClienteParada(BaseModel):
+    nombre: Optional[str] = None
+    km_desde_origen: float
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    estado: str  # pasada | proxima | pendiente
+
+
+class SeguimientoClienteLeer(BaseModel):
+    envio_id: uuid.UUID
+    codigo_envio: Optional[str] = None
+    estado_envio: str                                 # estado del envío en Shipment (pendiente, asignado, en_transito, ...)
+    estado_viaje: str                                 # sin_viaje | preparando | en_curso | pausada | finalizada | cancelada
+    mensaje: str
+    es_pedido_dividido: bool = False                  # pedido con varias partes: se sigue cada parte por su propio id
+    viaja_compartido: bool = False
+    trazado_disponible: bool = False                  # ya se puede pedir /trazado
+    origen: Optional[ClientePunto] = None
+    destino: Optional[ClientePunto] = None
+    posicion: ClientePosicion
+    progreso: Optional[ClienteProgreso] = None
+    tiempos: Optional[ClienteTiempos] = None
+    parada_actual: Optional[ClienteParadaActual] = None
+    paradas: list[ClienteParada] = []
+    fase: Optional[str] = None                        # "reposicion" (va hacia el punto de recogida) | "viaje" (lleva la carga)
+
+
+class TrazadoClienteLeer(BaseModel):
+    envio_id: uuid.UUID
+    codigo_envio: Optional[str] = None
+    distancia_km: Optional[float] = None
+    origen: ClientePunto
+    destino: ClientePunto
+    puntos: list[list[float]]
+    paradas: list[ClienteParada] = []
+
+
+class RecorridoClientePunto(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    tiempo: datetime
+    latitud: float
+    longitud: float
