@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -35,4 +36,4 @@ app.include_router(seguimiento_cliente.router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "tracking-ingestion-service"}
+    return {"status": "ok", "service": "tracking-ingestion-service", "version": os.getenv("APP_VERSION", "dev")}

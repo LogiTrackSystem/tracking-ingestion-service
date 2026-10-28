@@ -191,8 +191,6 @@ def _armar_compartida(db: Session, fila: CargaCompartida) -> dict:
     if host is not None:
         km_host = host.distancia_total_km if (host.estado == "finalizada" and fila.estado == "entregada") else (host.km_recorridos or 0.0)
     recorridos = 0.0 if fila.estado == "pendiente" else (tramo if fila.estado == "entregada" else min(max(km_host - fila.km_recogida, 0.0), tramo))
-    ahora = datetime.now(timezone.utc)
-    en_marcha = host is not None and host.estado == "en_curso"
     segundos = None
     if fila.estado == "a_bordo" and host is not None and host.estado == "en_curso":
         faltan = max(tramo - recorridos, 0.0)
