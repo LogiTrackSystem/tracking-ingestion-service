@@ -14,7 +14,7 @@ MarkupSafe==3.0.3
 multidict==7.0.0
 pamqp==4.0.1
 propcache==0.5.4
-psycopg==3.3.6
+psycopg[binary]==3.3.6
 psycopg2-binary==2.9.13
 pydantic==2.13.5
 pydantic_core==2.46.5
