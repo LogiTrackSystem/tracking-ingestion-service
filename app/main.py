@@ -1,10 +1,39 @@
-from fastapi import FastAPI
-from .routers import telemetria
+import os
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Tracking Ingestion Service")
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import FastAPI
+from .interno import proteger_servicio
+
+from .consumidor import iniciar_consumidor
+from .events import cerrar_publicador
+from .routers import seguimiento, seguimiento_cliente, simulaciones, telemetria
+from .simulador import TICK_SEGUNDOS, tick
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    conexion = await iniciar_consumidor()
+    programador = AsyncIOScheduler()
+    programador.add_job(
+        tick, "interval", seconds=TICK_SEGUNDOS,
+        id="tick_simulacion", max_instances=1, coalesce=True,
+    )
+    programador.start()
+    yield
+    programador.shutdown(wait=False)
+    await conexion.close()
+    await cerrar_publicador()
+
+
+app = FastAPI(title="Tracking Ingestion Service", lifespan=lifespan)
 app.include_router(telemetria.router)
+proteger_servicio(app)
+app.include_router(simulaciones.router)
+app.include_router(seguimiento.router)
+app.include_router(seguimiento_cliente.router)
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "tracking-ingestion-service"}
+    return {"status": "ok", "service": "tracking-ingestion-service", "version": os.getenv("APP_VERSION", "dev")}
