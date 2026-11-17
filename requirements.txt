@@ -31,3 +31,5 @@ websockets==17.1
 yarl==1.25.1
 apscheduler==3.11.0
 httpx==0.28.1
+prometheus-client==0.26.0
+prometheus-fastapi-instrumentator==8.1.0
